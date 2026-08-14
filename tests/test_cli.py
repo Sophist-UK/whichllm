@@ -970,6 +970,8 @@ def test_resolve_ranked_synthetic_gguf_to_real_repo():
         parameter_count=27_000_000_000,
         downloads=200_000,
         base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Qwen3.6-27B",),
         gguf_variants=[
             GGUFVariant(
                 filename="Qwen3.6-27B-Q4_K_M.gguf",
@@ -990,6 +992,269 @@ def test_resolve_ranked_synthetic_gguf_to_real_repo():
     model, variant = resolved
     assert model.id == "unsloth/Qwen3.6-27B-GGUF"
     assert variant.filename == "Qwen3.6-27B-Q4_K_M.gguf"
+
+
+def test_resolve_ranked_synthetic_gguf_rejects_finetuned_repo():
+    selected = ModelInfo(
+        id="Qwen/Qwen3.6-27B",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B",
+        parameter_count=27_000_000_000,
+    )
+    finetuned_gguf = ModelInfo(
+        id="converter/Qwen3.6-27B-MTP-pi-tune-GGUF",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B-MTP-pi-tune-GGUF",
+        parameter_count=27_000_000_000,
+        downloads=1_000_000,
+        base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="finetune",
+        tags=("base_model:finetune:Qwen/Qwen3.6-27B",),
+        gguf_variants=[
+            GGUFVariant(
+                filename="Qwen3.6-27B-MTP-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=16_000_000_000,
+            )
+        ],
+    )
+    synthetic = GGUFVariant(
+        filename="Qwen3.6-27B.Q4_K_M.gguf",
+        quant_type="Q4_K_M",
+        file_size_bytes=16_000_000_000,
+    )
+
+    resolved = _resolve_ranked_gguf_for_run(
+        selected,
+        synthetic,
+        [selected, finetuned_gguf],
+    )
+
+    assert resolved is None
+
+
+def test_resolve_ranked_synthetic_gguf_rejects_unproven_base_relation():
+    selected = ModelInfo(
+        id="google/gemma-4-31B-it",
+        family_id="gemma-4-31b-it",
+        name="gemma-4-31B-it",
+        parameter_count=31_000_000_000,
+    )
+    unproven_gguf = ModelInfo(
+        id="converter/Gemma-4-31B-custom-GGUF",
+        family_id="gemma-4-31b-it",
+        name="Gemma-4-31B-custom-GGUF",
+        parameter_count=31_000_000_000,
+        downloads=1_000_000,
+        base_model="google/gemma-4-31b-it",
+        gguf_variants=[
+            GGUFVariant(
+                filename="Gemma-4-31B-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=19_000_000_000,
+            )
+        ],
+    )
+    synthetic = GGUFVariant(
+        filename="gemma-4-31B-it.Q4_K_M.gguf",
+        quant_type="Q4_K_M",
+        file_size_bytes=19_000_000_000,
+    )
+
+    resolved = _resolve_ranked_gguf_for_run(
+        selected,
+        synthetic,
+        [selected, unproven_gguf],
+    )
+
+    assert resolved is None
+
+
+def test_resolve_ranked_synthetic_gguf_rejects_other_quantized_checkpoint():
+    selected = ModelInfo(
+        id="Qwen/Qwen3.6-27B",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B",
+        parameter_count=27_000_000_000,
+    )
+    other_checkpoint = ModelInfo(
+        id="converter/Qwen3.6-27B-tuned-GGUF",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B-tuned-GGUF",
+        parameter_count=27_000_000_000,
+        base_model="tuner/Qwen3.6-27B-tuned",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:tuner/Qwen3.6-27B-tuned",),
+        gguf_variants=[
+            GGUFVariant(
+                filename="Qwen3.6-27B-tuned-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=16_000_000_000,
+            )
+        ],
+    )
+    synthetic = GGUFVariant(
+        filename="Qwen3.6-27B.Q4_K_M.gguf",
+        quant_type="Q4_K_M",
+        file_size_bytes=16_000_000_000,
+    )
+
+    resolved = _resolve_ranked_gguf_for_run(
+        selected,
+        synthetic,
+        [selected, other_checkpoint],
+    )
+
+    assert resolved is None
+
+
+def test_resolve_ranked_synthetic_gguf_rejects_renamed_merge_claiming_quantized():
+    selected = ModelInfo(
+        id="Qwen/Qwen3.6-27B",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B",
+        parameter_count=27_000_000_000,
+    )
+    merged_gguf = ModelInfo(
+        id="converter/Qwopus3.6-27B-Fusion-GGUF",
+        family_id="qwen3-27b",
+        name="Qwopus3.6-27B-Fusion-GGUF",
+        parameter_count=27_000_000_000,
+        downloads=1_000_000,
+        base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="quantized",
+        tags=(
+            "gguf",
+            "merge",
+            "task-vector",
+            "base_model:quantized:Qwen/Qwen3.6-27B",
+        ),
+        gguf_variants=[
+            GGUFVariant(
+                filename="Qwopus3.6-27B-Fusion-Q5_K_M.gguf",
+                quant_type="Q5_K_M",
+                file_size_bytes=19_000_000_000,
+            )
+        ],
+    )
+    synthetic = GGUFVariant(
+        filename="Qwen3.6-27B.Q5_K_M.gguf",
+        quant_type="Q5_K_M",
+        file_size_bytes=19_000_000_000,
+    )
+
+    resolved = _resolve_ranked_gguf_for_run(
+        selected,
+        synthetic,
+        [selected, merged_gguf],
+    )
+
+    assert resolved is None
+
+
+def test_resolve_ranked_synthetic_gguf_rejects_conflicting_base_relations():
+    selected = ModelInfo(
+        id="Qwen/Qwen3.6-27B",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B",
+        parameter_count=27_000_000_000,
+    )
+    merged_gguf = ModelInfo(
+        id="converter/Qwen3.6-27B-GGUF",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B-GGUF",
+        parameter_count=27_000_000_000,
+        base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="quantized",
+        tags=(
+            "gguf",
+            "base_model:quantized:Qwen/Qwen3.6-27B",
+            "base_model:finetune:Qwen/Qwen3.6-27B",
+        ),
+        gguf_variants=[
+            GGUFVariant(
+                filename="Qwen3.6-27B-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=16_000_000_000,
+            )
+        ],
+    )
+    synthetic = GGUFVariant(
+        filename="Qwen3.6-27B.Q4_K_M.gguf",
+        quant_type="Q4_K_M",
+        file_size_bytes=16_000_000_000,
+    )
+
+    assert (
+        _resolve_ranked_gguf_for_run(
+            selected,
+            synthetic,
+            [selected, merged_gguf],
+        )
+        is None
+    )
+
+
+def test_resolve_ranked_existing_gguf_repo_does_not_require_base_relation():
+    direct_gguf = ModelInfo(
+        id="author/custom-model-GGUF",
+        family_id="custom-model",
+        name="custom-model-GGUF",
+        parameter_count=7_000_000_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="custom-model-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=4_000_000_000,
+            )
+        ],
+    )
+
+    resolved = _resolve_ranked_gguf_for_run(
+        direct_gguf,
+        direct_gguf.gguf_variants[0],
+        [direct_gguf],
+    )
+
+    assert resolved == (direct_gguf, direct_gguf.gguf_variants[0])
+
+
+def test_resolve_ranked_synthetic_gguf_accepts_owner_prefixed_conversion_name():
+    selected = ModelInfo(
+        id="Qwen/Qwen3.6-27B",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B",
+        parameter_count=27_000_000_000,
+    )
+    direct_gguf = ModelInfo(
+        id="converter/Qwen_Qwen3.6-27B-GGUF",
+        family_id="qwen3-27b",
+        name="Qwen_Qwen3.6-27B-GGUF",
+        parameter_count=27_000_000_000,
+        base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Qwen3.6-27B",),
+        gguf_variants=[
+            GGUFVariant(
+                filename="Qwen3.6-27B-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=16_000_000_000,
+            )
+        ],
+    )
+    synthetic = GGUFVariant(
+        filename="Qwen3.6-27B.Q4_K_M.gguf",
+        quant_type="Q4_K_M",
+        file_size_bytes=16_000_000_000,
+    )
+
+    resolved = _resolve_ranked_gguf_for_run(
+        selected,
+        synthetic,
+        [selected, direct_gguf],
+    )
+
+    assert resolved == (direct_gguf, direct_gguf.gguf_variants[0])
 
 
 def test_resolve_ranked_synthetic_gguf_prefers_exact_quant():
@@ -1019,6 +1284,9 @@ def test_resolve_ranked_synthetic_gguf_prefers_exact_quant():
         name="Qwen3.6-27B-GGUF",
         parameter_count=27_000_000_000,
         downloads=10,
+        base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Qwen3.6-27B",),
         gguf_variants=[
             GGUFVariant(
                 filename="q4.gguf",
@@ -1249,6 +1517,8 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
         parameter_count=27_000_000_000,
         downloads=200_000,
         base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Qwen3.6-27B",),
         gguf_variants=[
             GGUFVariant(
                 filename="q4.gguf",
